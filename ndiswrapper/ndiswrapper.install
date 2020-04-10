@@ -1,0 +1,18 @@
+EXTRAMODULES=extramodules-5.6-CLEANJARO
+
+post_install()
+{
+  post_upgrade
+}
+
+post_upgrade()
+{
+  depmod $(cat /usr/lib/modules/$EXTRAMODULES/version)
+}
+
+post_remove()
+{
+  post_upgrade
+}
+
+# vim:set ts=2 sw=2 et:

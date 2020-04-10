@@ -1,0 +1,63 @@
+# Maintainer: David Spink <yorper_protonmail.com>
+
+# Contributor: Philip Müller <philm@manjaro.org>
+# Contributor: Helmut Stult <helmut[at]manjaro[dot]org>
+
+_linuxprefix=linux56
+_extramodules=extramodules-5.6-CLEANJARO
+pkgbase=$_linuxprefix-spl_zfs
+pkgname=("$_linuxprefix-zfs")
+pkgver=0.8.3
+pkgrel=1
+url="http://zfsonlinux.org/"
+arch=('x86_64')
+license=('CDDL' 'GPLv2')
+depends=("$_linuxprefix" "kmod")
+makedepends=("$_linuxprefix-headers")
+groups=("$_linuxprefix-extramodules")
+install=install
+source=("https://github.com/zfsonlinux/zfs/releases/download/zfs-${pkgver}/zfs-${pkgver}.tar.gz"
+        https://github.com/openzfs/zfs/commit/2fcab8795c7c493845bfa277d44bc443802000b8.diff
+        https://gist.githubusercontent.com/satmandu/67cbae9c4d461be0e64428a1707aef1c/raw/ba0fb65f17ccce5b710e4ce86a095de577f7dfe1/k5.6.3.patch)
+sha256sums=('545a4897ce30c2d2dd9010a0fdb600a0d3d45805e2387093c473efc03aa9d7fd'
+            '4b7f2f75772780fb780cae876543e4b2de989c4473463823659f676ac02d6a9d'
+            '7b68be97c053fc8501ef78969d0aec247de280de2119da8d7e52918ff94fd490')
+
+prepare() {
+  cd "${srcdir}/zfs-${pkgver}"
+  # patches here
+
+  # Linux 5.5 blkg_tryget() compat
+  # https://github.com/openzfs/zfs/commit/2fcab8795c7c493845bfa277d44bc443802000b8
+  patch -Np1 -i ../2fcab8795c7c493845bfa277d44bc443802000b8.diff
+
+  # Port of ZFS 5.6 compat patches to 0.8.3
+  # https://gist.github.com/satmandu/67cbae9c4d461be0e64428a1707aef1c
+  patch -Np1 -i ../k5.6.3.patch
+}
+
+build() {
+  _kernver="$(cat /usr/lib/modules/${_extramodules}/version)"
+  cd "${srcdir}/zfs-${pkgver}"
+  ./autogen.sh
+  sed -i "s|\$(uname -r)|${_kernver}|g" configure
+  ./configure --prefix=/usr --sysconfdir=/etc --sbindir=/usr/bin --libdir=/usr/lib \
+              --datadir=/usr/share --includedir=/usr/include --with-udevdir=/lib/udev \
+              --libexecdir=/usr/lib/zfs-${pkgver} --with-config=kernel \
+ 	      --with-linux=/usr/lib/modules/${_kernver}/build \
+	      --with-linux-obj=/usr/lib/modules/${_kernver}/build
+  make
+}
+
+package_linux56-zfs(){
+  pkgdesc='Kernel modules for the Zettabyte File System.'
+  provides=("zfs=$pkgver")
+  depends+=("zfs-utils=${pkgver}")
+  replaces=('linux51-spl<=0.7.13')
+
+  cd "${srcdir}/zfs-${pkgver}"
+  install -dm755 "$pkgdir/usr/lib/modules/$_extramodules"
+  install -m644 module/*/*.ko "$pkgdir/usr/lib/modules/$_extramodules"
+  find "$pkgdir" -name '*.ko' -exec gzip -9 {} +
+  sed -i -e "s/EXTRAMODULES='.*'/EXTRAMODULES='$_extramodules'/" "$startdir/install"
+}
